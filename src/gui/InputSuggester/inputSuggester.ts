@@ -36,6 +36,12 @@ type Options = {
 	 */
 	customValueLast: boolean;
 	/**
+	 * Items from this index on show only once something is typed, ranked after
+	 * the matching items before it (a FIELD `|link` lists other notes after
+	 * the property's values).
+	 */
+	typedOnlyFrom: number;
+	/**
 	 * Suppresses the custom row when the typed value already maps to a selectable
 	 * target the caller recognises (e.g. an existing file reached by basename).
 	 */
@@ -61,6 +67,7 @@ export default class InputSuggester extends SuggesterModal<string> {
 	private allowCustomValue = true;
 	private customValueLabel?: (value: string) => string;
 	private customValueLast = false;
+	private typedOnlyFrom?: number;
 	private valueExists?: (value: string) => boolean;
 
 	public static Suggest(
@@ -91,6 +98,7 @@ export default class InputSuggester extends SuggesterModal<string> {
 		this.allowCustomValue = options.allowCustomValue ?? true;
 		this.customValueLabel = options.customValueLabel;
 		this.customValueLast = options.customValueLast ?? false;
+		this.typedOnlyFrom = options.typedOnlyFrom;
 		this.valueExists = options.valueExists;
 
 		if (options.placeholder) this.setPlaceholder(options.placeholder);
@@ -121,7 +129,7 @@ export default class InputSuggester extends SuggesterModal<string> {
 	}
 
 	getSuggestions(query: string): FuzzyMatch<string>[] {
-		const suggestions = super.getSuggestions(query);
+		const suggestions = this.partitionTypedOnly(query, super.getSuggestions(query));
 
 		if (!this.allowCustomValue) return suggestions;
 
@@ -168,6 +176,18 @@ export default class InputSuggester extends SuggesterModal<string> {
 		}
 
 		return suggestions;
+	}
+
+	/** Hides the typed-only items for an empty query, and ranks them last otherwise. */
+	private partitionTypedOnly(query: string, suggestions: FuzzyMatch<string>[]): FuzzyMatch<string>[] {
+		const from = this.typedOnlyFrom;
+		if (from === undefined) return suggestions;
+		const first: FuzzyMatch<string>[] = [];
+		const typedOnly: FuzzyMatch<string>[] = [];
+		for (const suggestion of suggestions) {
+			(this.indexOfItem(suggestion.item) < from ? first : typedOnly).push(suggestion);
+		}
+		return normalizeQuery(query).trim() ? [...first, ...typedOnly] : first;
 	}
 
 	renderSuggestion(value: FuzzyMatch<string>, el: HTMLElement): void {

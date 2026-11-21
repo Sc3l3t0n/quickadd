@@ -15,6 +15,8 @@ import { log } from "../../logger/logManager";
 import { getFileTokenFiles } from "../../utils/vaultQueries";
 import { FieldLinkOptions } from "../../utils/fieldLinkValues";
 import { renderLinkSuggestion } from "../../gui/suggesters/renderLinkSuggestion";
+import { rankMatches } from "../../gui/suggesters/rankMatches";
+import type { CustomValueSuggestion } from "../../gui/MultiSuggester/customValueSuggest";
 
 interface VaultPromptContext {
 	app: App;
@@ -205,8 +207,10 @@ function fieldLinkOptions(app: App, values: string[], sourcePath: string): Field
 }
 
 /**
- * `{{FIELD:<name>|link}}`: the property's values first, then every other note,
- * shown by name. Returns links; a typed name that matches no note becomes a
+ * `{{FIELD:<name>|link}}`: the picker opens with the property's values, shown
+ * by name. Typing also finds the other notes, ranked after the matching
+ * values. A multi-select lists only the values; its custom-value field finds
+ * the other notes. Returns links; a typed name that matches no note becomes a
  * link to it as typed.
  */
 async function suggestFieldLink(
@@ -221,30 +225,37 @@ async function suggestFieldLink(
 	const provider = executor?.promptProvider;
 	const links = fieldLinkOptions(app, values, getSourcePath() ?? "");
 	const toLink = (typed: unknown) => links.linkForTyped(String(typed ?? ""));
+	const valueOptions = links.options.slice(0, links.valueCount);
+	const valueLinks = valueOptions.map((option) => option.value);
+	const valueDisplays = valueOptions.map((option) => option.display);
 
 	if (multiSelect) {
 		const preselected = (
 			activeDefault === null ? [] : Array.isArray(activeDefault) ? activeDefault : [activeDefault]
 		).map(toLink).filter(Boolean);
 		const picked = provider
-			? await provider.suggesterMulti(links.displays, links.values, {
+			? await provider.suggesterMulti(valueDisplays, valueLinks, {
 					placeholder,
 					allowCustomInput: true,
 					preselected: preselected.length > 0 ? preselected : undefined,
 				})
-			: await MultiSuggester.Suggest(app, links.displays, links.values, {
+			: await MultiSuggester.Suggest(app, valueDisplays, valueLinks, {
 					placeholder,
 					allowCustomValue: true,
-					aliases: links.aliases,
+					aliases: valueOptions.map((option) => option.aliases),
 					resolveTyped: toLink,
 					linkValues: true,
+					suggestCustom: (query) => suggestOtherNotes(links, query),
+					customLabel: (value) => links.displayFor(value),
 					...(preselected.length > 0 ? { preselected } : {}),
 				});
 		return [...new Set(picked.map(toLink).filter(Boolean))];
 	}
 
+	// A remote client cannot hold notes back until something is typed, so it
+	// gets the values; a typed name still links to its note.
 	if (provider) {
-		return toLink(await provider.suggester(links.displays, links.values, placeholder, true));
+		return toLink(await provider.suggester(valueDisplays, valueLinks, placeholder, true));
 	}
 
 	const displayByValue = new Map(links.options.map((option) => [option.value, option.display]));
@@ -256,8 +267,35 @@ async function suggestFieldLink(
 		valueExists: (typed) => links.namesOption(typed),
 		customValueLabel: (typed) => `Link to ${toLink(typed)}`,
 		customValueLast: true,
+		typedOnlyFrom: links.valueCount,
 	});
 	return toLink(picked);
+}
+
+const OTHER_NOTE_SUGGESTIONS = 20;
+
+/**
+ * The notes that are not values of the property that match `query`, best first,
+ * then a link to the typed name when no note has it.
+ */
+export function suggestOtherNotes(links: FieldLinkOptions, query: string): CustomValueSuggestion[] {
+	const others = links.options.slice(links.valueCount);
+	const suggestions: CustomValueSuggestion[] = rankMatches(
+		query,
+		others,
+		(option) => option.display,
+		{ limit: OTHER_NOTE_SUGGESTIONS, aliases: (option) => option.aliases },
+	).map(({ item, matches, alias }) => ({
+		value: item.value,
+		display: alias ?? item.display,
+		matches,
+		...(alias === undefined ? {} : { note: item.display }),
+	}));
+	if (!links.namesOption(query)) {
+		const link = links.linkForTyped(query);
+		suggestions.push({ value: link, display: `Link to ${link}`, matches: [], plain: true });
+	}
+	return suggestions;
 }
 
 export async function suggestForFile({ app, executor, getSourcePath }: VaultPromptContext, parsed: ParsedFileToken): Promise<string | string[]> {

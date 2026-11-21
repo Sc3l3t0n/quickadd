@@ -964,8 +964,10 @@ categories:
   - "[[Clippings]]"
 ```
 
-- The picker lists the property's existing values first, then the other notes in your vault, most recently changed first. Values that point to the same note, like `[[Book]]`, `Book`, and `[[References/Book|The book]]`, show up as one entry.
+- The picker opens with only the property's existing values. Values that point to the same note, like `[[Book]]`, `Book`, and `[[References/Book|The book]]`, show up as one entry.
+- When you type, the picker also searches the rest of your vault. Matching values come first, then matching notes that aren't values yet.
 - You can type a note's name or one of its aliases to pick the note. A name that matches no note shows up as **Link to [[New name]]**, after the matching notes. QuickAdd writes that link but does not create the note, just as Obsidian handles a link to a note that doesn't exist yet.
+- With `|multi`, the list shows only the existing values. To add another note, type in **Add a custom value**: a list of matching notes appears under the field. Use the arrow keys and Enter, or click, to add one.
 - Links follow your link settings, the same as [`{{FILE:...|link}}`](#file). Don't wrap the placeholder in `[[ ]]` yourself.
 - When a `|link` FIELD is a property's whole value, QuickAdd puts quotes around the link. Without them, YAML would read `[[Steph Ango]]` as a nested list instead of a link.
 - An answer that comes in as a plain name, from a script, the CLI, or [`|name:`](#field-name), becomes a link too.

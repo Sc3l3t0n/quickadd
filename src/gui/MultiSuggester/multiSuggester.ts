@@ -3,6 +3,7 @@ import { Modal, Notice, Setting } from "obsidian";
 import { normalizeDisplayItem } from "../suggesters/utils";
 import { promptCancelled } from "../../errors/UserCancelError";
 import { itemWithAlias } from "../../utils/fileSyntax";
+import { CustomValueSuggest, type CustomValueSuggestion } from "./customValueSuggest";
 import SearchableMultiSelect, {
 	type SearchableMultiSelectItem,
 } from "../SearchableMultiSelect/searchableMultiSelect";
@@ -32,6 +33,14 @@ interface MultiSuggesterOptions {
 	resolveTyped?: (typed: string) => string;
 	/** Shows the options in link color: they are notes. */
 	linkValues?: boolean;
+	/**
+	 * Suggestions for the custom-value field while typing, picked with the
+	 * arrow keys and Enter (a FIELD `|link` offers notes that are not yet
+	 * values of the property).
+	 */
+	suggestCustom?: (query: string) => CustomValueSuggestion[];
+	/** The label of an added value that is not an option; the value itself by default. */
+	customLabel?: (value: string) => string;
 }
 
 /**
@@ -58,6 +67,7 @@ export default class MultiSuggester extends Modal {
 	// local) so submit() can fold an un-"Add"ed draft into the result instead of
 	// silently dropping it.
 	private draft = "";
+	private customSuggest?: CustomValueSuggest;
 
 	public static Suggest(
 		app: App,
@@ -152,10 +162,13 @@ export default class MultiSuggester extends Modal {
 						.setValue(this.draft)
 						.onChange((v) => (this.draft = v));
 					text.inputEl.addClass("qa-multi-custom-input");
+					this.attachCustomSuggest(text.inputEl);
 					// Enter is the natural "commit this value" gesture; without it the
 					// typed value is only added by the explicit "Add" button and is
 					// otherwise silently lost.
 					text.inputEl.addEventListener("keydown", (evt) => {
+						// With the suggestion list open, Enter picks a suggestion instead.
+						if (text.inputEl.getAttribute("aria-expanded") === "true") return;
 						if (evt.key === "Enter") {
 							evt.preventDefault();
 							this.commitDraft();
@@ -203,7 +216,7 @@ export default class MultiSuggester extends Modal {
 			...this.customValues.map((value) => ({
 				key: value,
 				value,
-				label: value,
+				label: this.opts.customLabel?.(value) ?? value,
 			})),
 		];
 	}
@@ -235,6 +248,25 @@ export default class MultiSuggester extends Modal {
 		// input; restore it so adding several values in a row stays fluid.
 		this.focusCustomInput();
 		return true;
+	}
+
+	/** Suggests values under the custom-value field, rebuilt with the field on each render. */
+	private attachCustomSuggest(inputEl: HTMLInputElement): void {
+		this.customSuggest?.destroy();
+		const suggestFor = this.opts.suggestCustom;
+		if (!suggestFor) return;
+		this.customSuggest = new CustomValueSuggest(
+			this.app,
+			inputEl,
+			suggestFor,
+			(value) => {
+				this.selectValue(value);
+				this.draft = "";
+				this.render();
+				this.focusCustomInput();
+			},
+			this.scope,
+		);
 	}
 
 	/** A typed value, or the option one of whose aliases it is: an alias names its note. */
@@ -270,6 +302,7 @@ export default class MultiSuggester extends Modal {
 
 	onClose() {
 		super.onClose();
+		this.customSuggest?.destroy();
 		if (this.didSubmit) {
 			this.resolvePromise(this.skipped ? [] : this.collectResult());
 		} else {

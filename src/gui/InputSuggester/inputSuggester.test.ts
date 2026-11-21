@@ -68,6 +68,25 @@ describe("InputSuggester", () => {
 		]);
 	});
 
+	it("shows typed-only items only for a query, after the matching items before them", () => {
+		const suggester = new InputSuggester(
+			app,
+			["Book", "Bookshelf", "Booklet"],
+			["[[Book]]", "[[Bookshelf]]", "[[Booklet]]"],
+			{ typedOnlyFrom: 1 },
+		);
+
+		suggester.inputEl.value = "";
+		expect(suggester.getSuggestions("").map((suggestion) => suggestion.item)).toEqual(["[[Book]]"]);
+
+		suggester.inputEl.value = "Bookle";
+		expect(suggester.getSuggestions("Bookle").map((suggestion) => suggestion.item)[0]).toBe("[[Booklet]]");
+
+		suggester.inputEl.value = "Boo";
+		const items = suggester.getSuggestions("Boo").map((suggestion) => suggestion.item);
+		expect(items.slice(0, 3)).toEqual(["[[Book]]", "[[Bookshelf]]", "[[Booklet]]"]);
+	});
+
 	it("avoids duplicating existing items as custom input", () => {
 		const suggester = new InputSuggester(
 			app,

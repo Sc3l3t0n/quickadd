@@ -83,6 +83,8 @@ describe("FieldLinkOptions", () => {
 		expect(links.linkForTyped("[[People/Steph Ango|S]]")).toBe("[[Steph Ango]]");
 		expect(links.linkForTyped("New Person")).toBe("[[New Person]]");
 		expect(links.linkForTyped("")).toBe("");
+		expect(links.displayFor("[[Steph Ango]]")).toBe("Steph Ango");
+		expect(links.displayFor("[[People/New Person|Newbie]]")).toBe("New Person");
 	});
 
 	it("offers a link to a new note only for a name no note has", () => {

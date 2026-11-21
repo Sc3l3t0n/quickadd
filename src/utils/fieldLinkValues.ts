@@ -87,6 +87,8 @@ export interface FieldLinkVault {
 
 export class FieldLinkOptions {
 	readonly options: FieldLinkOption[];
+	/** How many leading options are the property's values; the rest are other notes. */
+	readonly valueCount: number;
 	private readonly byPath = new Map<string, FieldLinkOption>();
 
 	/**
@@ -128,6 +130,7 @@ export class FieldLinkOptions {
 			options.push({ value: ensureLinkValue(value), display: target, aliases: [] });
 		}
 
+		this.valueCount = options.length;
 		for (const file of vault.files) add(file);
 		this.options = options;
 	}
@@ -142,6 +145,15 @@ export class FieldLinkOptions {
 
 	get aliases(): string[][] {
 		return this.options.map((option) => option.aliases);
+	}
+
+	/** The name a link shows as: its note's name, or the name it links to. */
+	displayFor(value: string): string {
+		return (
+			this.options.find((option) => option.value === value)?.display ??
+			linkTargetOf(value).split("/").pop() ??
+			value
+		);
 	}
 
 	/**

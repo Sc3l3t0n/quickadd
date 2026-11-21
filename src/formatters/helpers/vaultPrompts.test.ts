@@ -2,7 +2,8 @@ import { TFile, type App } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import type { IChoiceExecutor } from "../../IChoiceExecutor";
 import { FILE_CUSTOM_PREFIX, FILE_PICK_PREFIX, parseFileToken } from "../../utils/fileSyntax";
-import { suggestForField, suggestForFile } from "./vaultPrompts";
+import { suggestForField, suggestForFile, suggestOtherNotes } from "./vaultPrompts";
+import { FieldLinkOptions } from "../../utils/fieldLinkValues";
 
 const files = ["People/Thomas Anderson.md", "People/Neo Classic.md"].map((path) =>
 	Object.assign(new TFile(), {
@@ -85,16 +86,34 @@ describe("suggestForField with |link", () => {
 		return { result, suggester, suggesterMulti };
 	}
 
-	it("lists the property's values, then the other notes, by name", async () => {
+	it("offers a remote client the property's values by name, one per note", async () => {
 		const { result, suggester } = ask("author|link", "[[Book]]");
 
 		await expect(result).resolves.toBe("[[Book]]");
 		expect(suggester).toHaveBeenCalledWith(
-			["Book", "Unwritten", "Steph Ango"],
-			["[[Book]]", "[[Unwritten]]", "[[Steph Ango]]"],
+			["Book", "Unwritten"],
+			["[[Book]]", "[[Unwritten]]"],
 			"Enter value for author",
 			true,
 		);
+	});
+
+	it("suggests only notes that are not values under a multi-select's custom field", () => {
+		const links = new FieldLinkOptions(["[[Book]]"], {
+			files: notes,
+			resolve: (target) => notes.find((note) => note.basename.toLowerCase() === target.toLowerCase()) ?? null,
+			linkFor: (file) => `[[${file.basename}]]`,
+			describe: (files) => files.map((file) => ({
+				label: file.basename,
+				aliases: file.basename === "Steph Ango" ? ["Steph"] : [],
+			})),
+		});
+
+		expect(suggestOtherNotes(links, "steph").map(({ value, display, note }) => ({ value, display, note })))
+			.toEqual([{ value: "[[Steph Ango]]", display: "Steph", note: "Steph Ango" }]);
+		expect(suggestOtherNotes(links, "Book")).toEqual([]);
+		expect(suggestOtherNotes(links, "Zq").map(({ value, plain }) => ({ value, plain })))
+			.toEqual([{ value: "[[Zq]]", plain: true }]);
 	});
 
 	it("links a typed name or alias to its note, and anything else as typed", async () => {
