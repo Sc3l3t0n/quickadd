@@ -16,7 +16,8 @@ import { getPeriodicNoteSettings, PERIODIC_NOTE_REGEX, type Period, periodicNote
 import type { RunClocks } from "../types/dateOrigin";
 import type { IDateParser } from "../parsers/IDateParser";
 import { log } from "../logger/logManager";
-import { escapeValueInsideQuotedYamlScalar } from "../utils/yamlScalarQuoting";
+import { escapeValueInsideQuotedYamlScalar, quoteYamlDouble, shouldQuoteTextScalar } from "../utils/yamlScalarQuoting";
+import { ensureLinkValue, linkifyFieldValue } from "../utils/fieldLinkValues";
 import { FieldSuggestionParser } from "../utils/FieldSuggestionParser";
 import { parseMacroToken } from "../utils/macroSyntax";
 import { resolveExistingVariableKey } from "../utils/valueSyntax";
@@ -260,9 +261,12 @@ export abstract class Formatter extends ValueFormatter {
 				// namespace, so a `{{VALUE:status}}` answer could be served to a
 				// `{{FIELD:status}}` token - the separation FIELD_VARIABLE_PREFIX
 				// exists for. A FIELD shares its answer only by its own `|name:`.
-				const rawValue = this.hasConcreteVariable(fieldVariableKey)
+				const storedValue = this.hasConcreteVariable(fieldVariableKey)
 					? this.variables.get(fieldVariableKey)
 					: this.getVariableValue(fieldVariableKey);
+				// A `|link` FIELD writes links, also for an answer that came as a
+				// plain name (a script, the CLI, the one-page form).
+				const rawValue = parsed.link ? linkifyFieldValue(storedValue) : storedValue;
 				if (!parsed.multiFormat || parsed.multiFormat === "auto") {
 					this.retainSingleTokenValue(input, match.index, match.index + match[0].length, rawValue);
 				}
@@ -280,13 +284,15 @@ export abstract class Formatter extends ValueFormatter {
 						multiFormat: parsed.multiFormat ?? "auto",
 						}) ?? rawValue.join(",");
 				} else {
-					replacement = escapeValueInsideQuotedYamlScalar(
-						input,
-						match.index,
-						match.index + match[0].length,
-						// A named FIELD reads as {{VALUE:<name>}} writes it, so a date stays formatted.
-						String((parsed.name ? this.getValueTokenText(fieldVariableKey) : rawValue) ?? ""),
-					);
+					// A named FIELD reads as {{VALUE:<name>}} writes it, so a date stays formatted.
+					const text = String((parsed.name ? this.getValueTokenText(fieldVariableKey) : rawValue) ?? "");
+					const value = parsed.link ? ensureLinkValue(text) : text;
+					const matchEnd = match.index + match[0].length;
+					// An unquoted `[[link]]` is a nested YAML list, so a link that is
+					// a property's whole value is written quoted.
+					replacement = parsed.link && value && shouldQuoteTextScalar(input, match.index, matchEnd)
+						? quoteYamlDouble(value)
+						: escapeValueInsideQuotedYamlScalar(input, match.index, matchEnd, value);
 				}
 
 				output += this.userText(replacement);

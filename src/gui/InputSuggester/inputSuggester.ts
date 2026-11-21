@@ -31,6 +31,11 @@ type Options = {
 	 */
 	customValueLabel: (value: string) => string;
 	/**
+	 * Lists the labeled custom row after the matches instead of first, so Enter
+	 * picks the best match. It stays within `limit`, so it is never cut off.
+	 */
+	customValueLast: boolean;
+	/**
 	 * Suppresses the custom row when the typed value already maps to a selectable
 	 * target the caller recognises (e.g. an existing file reached by basename).
 	 */
@@ -55,6 +60,7 @@ export default class InputSuggester extends SuggesterModal<string> {
 	);
 	private allowCustomValue = true;
 	private customValueLabel?: (value: string) => string;
+	private customValueLast = false;
 	private valueExists?: (value: string) => boolean;
 
 	public static Suggest(
@@ -84,6 +90,7 @@ export default class InputSuggester extends SuggesterModal<string> {
 
 		this.allowCustomValue = options.allowCustomValue ?? true;
 		this.customValueLabel = options.customValueLabel;
+		this.customValueLast = options.customValueLast ?? false;
 		this.valueExists = options.valueExists;
 
 		if (options.placeholder) this.setPlaceholder(options.placeholder);
@@ -151,7 +158,10 @@ export default class InputSuggester extends SuggesterModal<string> {
 			},
 		};
 
-		if (this.customValueLabel) {
+		if (this.customValueLabel && this.customValueLast) {
+			const lastShown = this.limit > 0 ? this.limit - 1 : suggestions.length;
+			suggestions.splice(Math.min(suggestions.length, lastShown), 0, customSuggestion);
+		} else if (this.customValueLabel) {
 			suggestions.unshift(customSuggestion);
 		} else {
 			suggestions.push(customSuggestion);

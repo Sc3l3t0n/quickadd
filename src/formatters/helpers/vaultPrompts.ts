@@ -13,6 +13,8 @@ import { UserCancelError } from "../../errors/UserCancelError";
 import { isCancellationError } from "../../utils/errorUtils";
 import { log } from "../../logger/logManager";
 import { getFileTokenFiles } from "../../utils/vaultQueries";
+import { FieldLinkOptions } from "../../utils/fieldLinkValues";
+import { renderLinkSuggestion } from "../../gui/suggesters/renderLinkSuggestion";
 
 interface VaultPromptContext {
 	app: App;
@@ -30,7 +32,7 @@ export async function suggestForField({ app, executor, getSourcePath }: VaultPro
 		// on unknown keys here: the field replacer in formatter.ts already parses
 		// the same token with { warnUnknown: true } before calling this, so
 		// warning again would emit a duplicate notice per malformed FIELD token.
-		const { fieldName, filters, multiSelect, label } =
+		const { fieldName, filters, multiSelect, label, link } =
 			FieldSuggestionParser.parse(fieldInput);
 
 		// Resolve the active-note default (issue #1429) BEFORE collection but apply
@@ -84,6 +86,13 @@ export async function suggestForField({ app, executor, getSourcePath }: VaultPro
 			multiSelect && !label ? `Select values for ${fieldName}` : title;
 		if (hasDefaultValue && effectiveDefault) {
 			placeholder = `${placeholder} (default: ${effectiveDefault})`;
+		}
+
+		if (link) {
+			return await suggestFieldLink(
+				{ app, executor, getSourcePath },
+				{ values, multiSelect: Boolean(multiSelect), placeholder, activeDefault },
+			);
 		}
 
 		if (multiSelect) {
@@ -179,6 +188,76 @@ export async function suggestForField({ app, executor, getSourcePath }: VaultPro
 		}
 		throw error;
 	}
+}
+
+/** The vault side of a FIELD `|link` picker: notes, resolved and linked from the run's source note. */
+function fieldLinkOptions(app: App, values: string[], sourcePath: string): FieldLinkOptions {
+	const files = [...app.vault.getMarkdownFiles()].sort(
+		(a, b) => (b.stat?.mtime ?? 0) - (a.stat?.mtime ?? 0),
+	);
+	return new FieldLinkOptions(values, {
+		files,
+		resolve: (target) => app.metadataCache.getFirstLinkpathDest(target, sourcePath),
+		linkFor: (file) => app.fileManager.generateMarkdownLink(file, sourcePath),
+		describe: (notes) =>
+			buildFileDisplayInfos(notes, (file) => app.metadataCache.getFileCache(file)),
+	});
+}
+
+/**
+ * `{{FIELD:<name>|link}}`: the property's values first, then every other note,
+ * shown by name. Returns links; a typed name that matches no note becomes a
+ * link to it as typed.
+ */
+async function suggestFieldLink(
+	{ app, executor, getSourcePath }: VaultPromptContext,
+	{ values, multiSelect, placeholder, activeDefault }: {
+		values: string[];
+		multiSelect: boolean;
+		placeholder: string;
+		activeDefault: string | string[] | null;
+	},
+): Promise<string | string[]> {
+	const provider = executor?.promptProvider;
+	const links = fieldLinkOptions(app, values, getSourcePath() ?? "");
+	const toLink = (typed: unknown) => links.linkForTyped(String(typed ?? ""));
+
+	if (multiSelect) {
+		const preselected = (
+			activeDefault === null ? [] : Array.isArray(activeDefault) ? activeDefault : [activeDefault]
+		).map(toLink).filter(Boolean);
+		const picked = provider
+			? await provider.suggesterMulti(links.displays, links.values, {
+					placeholder,
+					allowCustomInput: true,
+					preselected: preselected.length > 0 ? preselected : undefined,
+				})
+			: await MultiSuggester.Suggest(app, links.displays, links.values, {
+					placeholder,
+					allowCustomValue: true,
+					aliases: links.aliases,
+					resolveTyped: toLink,
+					linkValues: true,
+					...(preselected.length > 0 ? { preselected } : {}),
+				});
+		return [...new Set(picked.map(toLink).filter(Boolean))];
+	}
+
+	if (provider) {
+		return toLink(await provider.suggester(links.displays, links.values, placeholder, true));
+	}
+
+	const displayByValue = new Map(links.options.map((option) => [option.value, option.display]));
+	const picked = await InputSuggester.Suggest(app, links.displays, links.values, {
+		placeholder,
+		aliases: links.aliases,
+		renderItem: (value, el, matches) =>
+			renderLinkSuggestion(el, displayByValue.get(value) ?? value, matches),
+		valueExists: (typed) => links.namesOption(typed),
+		customValueLabel: (typed) => `Link to ${toLink(typed)}`,
+		customValueLast: true,
+	});
+	return toLink(picked);
 }
 
 export async function suggestForFile({ app, executor, getSourcePath }: VaultPromptContext, parsed: ParsedFileToken): Promise<string | string[]> {

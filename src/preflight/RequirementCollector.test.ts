@@ -339,6 +339,16 @@ Body`);
       ).toEqual(["FIELD:project"]);
     });
 
+    it("leaves a |link FIELD to its runtime picker, which lists notes", async () => {
+      const rc = new RequirementCollector(makeApp(), makePlugin());
+      await rc.scanString("{{FIELD:author|link}}");
+
+      expect(rc.requirements.get("FIELD:author|link")).toMatchObject({
+        type: "field-suggest",
+        runtimeOnly: true,
+      });
+    });
+
     it("names the one-page field after its |label: (issue #1797)", async () => {
       const rc = new RequirementCollector(makeApp(), makePlugin());
       await rc.scanString(

@@ -621,7 +621,9 @@ export class RequirementCollector extends Formatter {
 				label: parsed.label ?? (parsed.fieldName || variableName),
 				type: "field-suggest",
 				source: "collected",
-				runtimeOnly: parsed.multiSelect,
+				// A `|link` FIELD lists notes and resolves typed names to them,
+				// which only its runtime picker does, so the form leaves it out too.
+				runtimeOnly: parsed.multiSelect || parsed.link,
 				fieldSpecifier: variableName,
 			};
 			// Single-select |default-from:active (issue #1429): resolve the active

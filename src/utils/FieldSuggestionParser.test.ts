@@ -272,6 +272,21 @@ describe("FieldSuggestionParser", () => {
 				"title|name:Title",
 				{ fieldName: "title", filters: {} },
 			],
+			[
+				"reads |link as values that are notes",
+				"author|link",
+				{ fieldName: "author", filters: {}, link: true },
+			],
+			[
+				"reads |link:false as no link",
+				"author|link:false",
+				{ fieldName: "author", filters: {} },
+			],
+			[
+				"reads |multi:linklist as a list of links, as VALUE spells it",
+				"categories|multi:linklist",
+				{ fieldName: "categories", filters: {}, multiSelect: true, link: true },
+			],
 		])("%s", (_name, input, expected) => {
 			expect(FieldSuggestionParser.parse(input)).toEqual(expected);
 		});

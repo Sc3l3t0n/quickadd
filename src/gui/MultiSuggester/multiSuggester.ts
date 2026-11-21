@@ -24,6 +24,14 @@ interface MultiSuggesterOptions {
 	preselected?: string[];
 	/** Other names each item can be found by, by index (a note's aliases). */
 	aliases?: string[][];
+	/**
+	 * The value a typed entry stands for, when the caller maps typed text to
+	 * values (a FIELD `|link` maps a note's name to a link to it). A result
+	 * that is an option toggles that option instead of adding a custom row.
+	 */
+	resolveTyped?: (typed: string) => string;
+	/** Shows the options in link color: they are notes. */
+	linkValues?: boolean;
 }
 
 /**
@@ -119,6 +127,7 @@ export default class MultiSuggester extends Modal {
 			"qaSearchableMultiSelectModal",
 			"qaMultiSuggester",
 		);
+		if (this.opts.linkValues) this.containerEl.addClass("qa-field-link-values");
 		this.titleEl.setText(this.opts.placeholder ?? "Select one or more");
 		const { contentEl } = this;
 		contentEl.empty();
@@ -230,7 +239,8 @@ export default class MultiSuggester extends Modal {
 
 	/** A typed value, or the option one of whose aliases it is: an alias names its note. */
 	private typedValue(typed: string): string {
-		return itemWithAlias(this.items, this.opts.aliases ?? [], typed) ?? typed;
+		const value = itemWithAlias(this.items, this.opts.aliases ?? [], typed) ?? typed;
+		return this.opts.resolveTyped?.(value) ?? value;
 	}
 
 	private focusCustomInput(): void {

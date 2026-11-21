@@ -19,7 +19,8 @@ import {
  * membership here BEFORE dispatching, so a `case` added to the switch without an
  * entry here stops working rather than silently drifting away from what the
  * warning advertises and what the typo suggester matches against. (`multi` is
- * both a bare flag and a `multi:true` key, and is spelled once for both.)
+ * both a bare flag and a `multi:true` key, and is spelled once for both, as
+ * is `link`.)
  */
 export const FIELD_FILTER_KEYS = [
 	"folder",
@@ -35,6 +36,7 @@ export const FIELD_FILTER_KEYS = [
 	"default-always",
 	"case-sensitive",
 	"multi",
+	"link",
 	"format",
 	"label",
 	"name",
@@ -175,6 +177,8 @@ export class FieldSuggestionParser {
 		label?: string;
 		/** The run variable the answer is read from and written to, as `{{VALUE:<name>}}` does. */
 		name?: string;
+		/** The values are notes: the picker lists notes and writes links. */
+		link?: boolean;
 	} {
 		const parts = splitPipeParts(input).map((p) => p.trim());
 		const fieldName = parts[0];
@@ -182,6 +186,7 @@ export class FieldSuggestionParser {
 		let multiSelect = false;
 		let multiFormat: MultiValueFormat = "auto";
 		let multiFormatExplicit = false;
+		let link = false;
 		let label: string | undefined;
 		let name: string | undefined;
 
@@ -191,11 +196,15 @@ export class FieldSuggestionParser {
 				multiSelect = true;
 				continue;
 			}
+			if (filterPart.toLowerCase() === "link") {
+				link = true;
+				continue;
+			}
 
 			const parsed = parsePipeKeyValue(filterPart);
 			if (!parsed) {
-				// A pipe part with no colon. `multi` is the only legal bare flag and
-				// was consumed above, so anything left here does nothing at all and
+				// A pipe part with no colon. `multi` and `link` are the only legal
+				// bare flags and were consumed above, so anything left here does nothing at all and
 				// would otherwise vanish without a trace - `|mutli` quietly
 				// downgrades a multi-select prompt to a single-select one. A
 				// correctly spelled key is a different mistake (a missing value) and
@@ -245,6 +254,11 @@ export class FieldSuggestionParser {
 					break;
 				case "multi":
 					multiSelect = parseBooleanFlag(filterValue);
+					// `|multi:linklist`, as VALUE spells it: a list of links.
+					if (filterValue.trim().toLowerCase() === "linklist") link = true;
+					break;
+				case "link":
+					link = parseBooleanFlag(filterValue);
 					break;
 				case "format":
 					multiFormatExplicit = true;
@@ -338,6 +352,7 @@ export class FieldSuggestionParser {
 			...(multiFormat !== "auto" ? { multiFormat } : {}),
 			...(label ? { label } : {}),
 			...(name ? { name } : {}),
+			...(link ? { link } : {}),
 		};
 	}
 }

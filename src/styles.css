@@ -1583,6 +1583,12 @@ body:has(> .modal-container:not(.quickAddModal)) .quickAddModal .qa-peek-button 
 	line-height: var(--line-height-tight);
 }
 
+/* {{FIELD:x|link}}: the options are notes, shown by name in link color. */
+.qa-field-link,
+.qa-field-link-values .qa-searchable-multi-select__option-label {
+	color: var(--link-color);
+}
+
 .qa-searchable-multi-select__option-note {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);

@@ -261,3 +261,35 @@ describe("Formatter FIELD and TITLE namespace handling", () => {
 		);
 	});
 });
+
+describe("FIELD |link writes links", () => {
+	it("quotes a link that is a property's whole value, so it stays a link", async () => {
+		const formatter = new FieldTitleFormatter();
+		formatter.setMockFieldResponse("author|link", "[[Steph Ango]]");
+
+		await expect(
+			formatter.runFormat("---\nauthor: {{FIELD:author|link}}\n---\nBy {{FIELD:author|link}}"),
+		).resolves.toBe('---\nauthor: "[[Steph Ango]]"\n---\nBy [[Steph Ango]]');
+	});
+
+	it("links a plain name it did not pick, and leaves an author's quotes alone", async () => {
+		const formatter = new FieldTitleFormatter();
+		(formatter as any).variables.set("FIELD:author|link", "Steph Ango");
+
+		await expect(
+			formatter.runFormat('---\nauthor: "{{FIELD:author|link}}"\n---'),
+		).resolves.toBe('---\nauthor: "[[Steph Ango]]"\n---');
+		expect(formatter.fieldCalls).toEqual([]);
+	});
+
+	it("links each pick of a list", async () => {
+		const formatter = new FieldTitleFormatter();
+		formatter.setMockFieldResponse("categories|multi|link|format:yaml", ["Books", "[[People]]"]);
+
+		const result = await formatter.runFormat(
+			"---\ncategories: {{FIELD:categories|multi|link|format:yaml}}\n---",
+		);
+
+		expect(result).toBe('---\ncategories: ["[[Books]]", "[[People]]"]\n---');
+	});
+});

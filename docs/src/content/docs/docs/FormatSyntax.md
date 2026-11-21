@@ -49,6 +49,7 @@ text. A Templater tag in the format itself can still use an answer, as in
 | [`{{VALUE:Red,Green,Blue}}`](#value-suggest) | Pick from a list |
 | [`{{VDATE:due,YYYY-MM-DD}}`](#vdate) | Ask for a date ("tomorrow" works) |
 | [`{{FIELD:project}}`](#field) | Suggest values that property already has in your vault |
+| [`{{FIELD:author\|link}}`](#field-link) | Pick a note for a property whose values are links |
 | [`{{PROPERTY}}`](#property) | Insert the property's current value (property Captures only) |
 | [`{{CURSOR}}`](#cursor) | Place the cursor inside a Template or Capture |
 | [`{{FILE:People}}`](#file) | Pick a note from a folder |
@@ -942,6 +943,34 @@ When a format contains `{{FIELD:...|multi}}`, QuickAdd collects the other
 one-page inputs first, then opens the regular multi-select for the FIELD
 value.
 :::
+
+#### Values that are notes: `|link` {#field-link}
+
+For a property whose values are links to notes, such as `author: "[[Steph Ango]]"`
+or `categories: ["[[Books]]"]`, add `|link`. The picker shows each note by
+name in link color and writes a link to it.
+
+```markdown title="You write"
+---
+author: {{FIELD:author|link}}
+categories: {{FIELD:categories|multi|link}}
+---
+```
+
+```yaml title="You get (after picking Steph Ango, then Books and Clippings)"
+author: "[[Steph Ango]]"
+categories:
+  - "[[Books]]"
+  - "[[Clippings]]"
+```
+
+- The picker lists the property's existing values first, then the other notes in your vault, most recently changed first. Values that point to the same note, like `[[Book]]`, `Book`, and `[[References/Book|The book]]`, show up as one entry.
+- You can type a note's name or one of its aliases to pick the note. A name that matches no note shows up as **Link to [[New name]]**, after the matching notes. QuickAdd writes that link but does not create the note, just as Obsidian handles a link to a note that doesn't exist yet.
+- Links follow your link settings, the same as [`{{FILE:...|link}}`](#file). Don't wrap the placeholder in `[[ ]]` yourself.
+- When a `|link` FIELD is a property's whole value, QuickAdd puts quotes around the link. Without them, YAML would read `[[Steph Ango]]` as a nested list instead of a link.
+- An answer that comes in as a plain name, from a script, the CLI, or [`|name:`](#field-name), becomes a link too.
+- `|multi:linklist` works the same as `|multi|link`.
+- The [one-page input form](/docs/Advanced/onePageInputs/) leaves `|link` FIELDs out and asks for them in the picker during the run, the same way it handles FIELD multi-selects.
 
 #### Label the prompt: `|label:` {#field-label}
 

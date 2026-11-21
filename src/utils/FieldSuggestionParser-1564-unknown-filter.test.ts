@@ -41,9 +41,10 @@ const SUGGESTIONS: Array<[typed: string, expected: string[]]> = [
 	// Not a typo of anything: no guess, fall back to the vocabulary.
 	["filter", []],
 	["sortby", []],
-	["limit", []],
 	["path", []],
 	["f", []],
+	// Two edits from `link`.
+	["limit", ["link"]],
 ];
 
 describe("suggestSimilarKeys over the real FIELD filter vocabulary", () => {
@@ -87,7 +88,7 @@ describe("describeUnknownFieldFilter", () => {
 	it("keeps the full vocabulary when nothing is close", () => {
 		const message = describeUnknownFieldFilter("sortby", "status|sortby:x");
 		expect(message).toBe(
-			'Unknown FIELD filter "sortby" in {{FIELD:status|sortby:x}} was ignored. Supported filters: folder, tag, inline, inline-code-blocks, exclude-folder, exclude-tag, exclude-file, default, default-from, default-empty, default-always, case-sensitive, multi, format, label, name.',
+			'Unknown FIELD filter "sortby" in {{FIELD:status|sortby:x}} was ignored. Supported filters: folder, tag, inline, inline-code-blocks, exclude-folder, exclude-tag, exclude-file, default, default-from, default-empty, default-always, case-sensitive, multi, link, format, label, name.',
 		);
 	});
 
@@ -140,7 +141,7 @@ describe("FieldSuggestionParser warns through the new message", () => {
 		// answers it with a sibling key, because the suggester excludes the exact
 		// match from its own pool.
 		for (const key of FIELD_FILTER_KEYS) {
-			if (key === "multi") continue; // the one legal bare flag
+			if (key === "multi" || key === "link") continue; // the legal bare flags
 			const { warnings } = parse(`status|${key}`);
 			expect(warnings).toEqual([
 				`FIELD filter "${key}" needs a value - write "${key}:value". Ignored in {{FIELD:status|${key}}}.`,

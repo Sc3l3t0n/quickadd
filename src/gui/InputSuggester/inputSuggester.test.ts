@@ -46,6 +46,28 @@ describe("InputSuggester", () => {
 		]);
 	});
 
+	it("keeps a labeled custom row after the matches, within the limit", () => {
+		const suggester = new InputSuggester(
+			app,
+			["New note 01", "New note 02", "New note 03"],
+			["[[New note 01]]", "[[New note 02]]", "[[New note 03]]"],
+			{
+				customValueLabel: (value) => `Link to [[${value}]]`,
+				customValueLast: true,
+				limit: 2,
+			},
+		);
+
+		suggester.inputEl.value = "New note";
+
+		expect(suggester.getSuggestions("New note").map((suggestion) => suggestion.item)).toEqual([
+			"[[New note 01]]",
+			"New note",
+			"[[New note 02]]",
+			"[[New note 03]]",
+		]);
+	});
+
 	it("avoids duplicating existing items as custom input", () => {
 		const suggester = new InputSuggester(
 			app,
